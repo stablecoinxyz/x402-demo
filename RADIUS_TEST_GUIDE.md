@@ -449,10 +449,14 @@ PAYMENT_TIMEOUT=120  # 2 minutes
 | **Token Type** | Native USD | SBC ERC-20 | SBC SPL |
 | **Decimals** | 18 | 18 | 9 |
 | **Gas Token** | USD | ETH | SOL |
-| **Block Time** | 2-3s | 2s | 0.4s |
+| **Block Time** | N/A (no batching)¹ | 2s | 0.4s |
 | **Cost** | Free (testnet) | ~$0.01/tx | ~$0.0001/tx |
-| **Finality** | 2-3s | 2-3s | <1s |
+| **Finality** | <1s² | 2-3s | <1s |
 | **Purpose** | Testing/Demo | Production | Production |
+
+> ¹ Radius executes transactions without delays for batch or block settlement ([source](https://www.radiustech.xyz/blog/the-radius-network))
+>
+> ² Radius claims "sub-second finality" and "near-zero latency" ([source](https://www.radiustech.xyz/))
 
 ---
 

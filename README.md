@@ -290,7 +290,7 @@ All payment methods use the x402 `exact` scheme with network-based routing.
 - **Amount:** 0.01 USD (10000000000000000 wei, 18 decimals)
 - **Token:** Native USD on Radius testnet
 - **Settlement:** On-chain (testnet) transfers
-- **Settlement Time:** <2 seconds
+- **Settlement Time:** <1 second ([source](https://www.radiustech.xyz/))
 
 ### Base Mainnet
 - **Scheme:** `exact`

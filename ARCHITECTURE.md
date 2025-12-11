@@ -576,10 +576,12 @@ npm run approve-solana-facilitator
 
 | Network | Token | Decimals | Settlement | TPS | Finality |
 |---------|-------|----------|------------|-----|----------|
-| **Radius Testnet** | Native USD | 18 | Native transfer | 2.5M+ | <1s |
+| **Radius Testnet**¹ | Native USD | 18 | Native transfer | 2.5M+ | <1s |
 | **Base Mainnet** | SBC ERC-20 | 18 | transferFrom | ~100 | <2s |
 | **Base Sepolia** | SBC ERC-20 | 6 | transferFrom | ~100 | <2s |
 | **Solana Mainnet** | SBC SPL | 9 | Delegated transfer | 65k | <1s |
+
+> ¹ Radius claims 2.5M+ TPS and sub-second finality ([source](https://www.radiustech.xyz/))
 
 ## Key Advantages
 

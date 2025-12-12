@@ -16,15 +16,6 @@ export function getSupportedNetworks(req: Request, res: Response) {
     network: string;
   }> = [];
 
-  // Add Radius testnet if configured
-  if (config.radiusMerchantAddress && config.radiusFacilitatorPrivateKey) {
-    kinds.push({
-      x402Version: 1,
-      scheme: 'exact',
-      network: 'radius-testnet'
-    });
-  }
-
   // Add Base if configured
   // Determine if it's mainnet or sepolia based on chain ID
   if (config.baseFacilitatorAddress && config.baseFacilitatorPrivateKey) {

@@ -1,7 +1,7 @@
 {
-  "name": "x402-poc",
+  "name": "x402-demo",
   "version": "1.0.0",
-  "description": "SBC x402 Facilitator POC on Radius Testnet",
+  "description": "SBC x402 Facilitator Demo - Multi-chain payment infrastructure for AI agents",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -16,12 +16,15 @@
     "run:agent": "cd packages/ai-agent && npm run start",
     "approve-base-facilitator": "cd packages/ai-agent && npm run approve-base-facilitator",
     "approve-base-sepolia-facilitator": "cd packages/ai-agent && npm run approve-base-sepolia-facilitator",
-    "approve-solana-facilitator": "cd packages/ai-agent && npm run approve-solana-facilitator"
+    "approve-solana-facilitator": "cd packages/ai-agent && npm run approve-solana-facilitator",
+    "test": "cd packages/facilitator && npm test",
+    "test:watch": "cd packages/facilitator && npm run test:watch",
+    "test:coverage": "cd packages/facilitator && npm run test:coverage"
   },
   "keywords": [
     "x402",
     "facilitator",
-    "radius",
+    "base",
     "solana",
     "payments",
     "ai-agents"

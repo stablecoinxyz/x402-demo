@@ -4,20 +4,6 @@ import { config } from '../config';
 export function createPaymentRequirement(resource: string) {
   const accepts: any[] = [];
 
-  // Add Radius payment option if configured
-  if (config.radiusMerchantAddress) {
-    accepts.push({
-      scheme: 'exact',
-      network: 'radius-testnet',
-      maxAmountRequired: config.radiusPaymentAmount,
-      resource, // URL of the resource being paid for
-      payTo: config.radiusMerchantAddress, // Merchant receives payment
-      facilitator: config.radiusFacilitatorAddress, // Facilitator executes tx
-      asset: '0x0000000000000000000000000000000000000000', // Native USD
-      maxTimeoutSeconds: config.paymentTimeout,
-    });
-  }
-
   // Add Base payment option if configured
   if (config.baseMerchantAddress) {
     const networkName = config.baseChainId === 8453 ? 'base' :

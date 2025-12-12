@@ -1,5 +1,4 @@
 import { config } from './config';
-import { createPaymentAuthorization } from './x402-client';
 import { createBasePaymentAuthorization } from './base-client';
 import { createSolanaPaymentAuthorization } from './solana-client';
 
@@ -66,7 +65,6 @@ async function main() {
     // Check for available options
     const hasSolana = availableNetworks.includes('solana-mainnet-beta');
     const hasBase = availableNetworks.some(n => n === 'base' || n === 'base-sepolia' || n === '8453' || n === '84532');
-    const hasRadius = availableNetworks.some(n => n === 'radius-testnet' || n === '1223953');
 
     // Use preferred network if available
     if (config.preferredNetwork === 'solana-mainnet-beta' && hasSolana && config.solanaAgentPrivateKey) {
@@ -77,10 +75,6 @@ async function main() {
       console.log('   Using Base payment (preferred) 🔵');
       xPaymentHeader = await createBasePaymentAuthorization(paymentReq);
       usedScheme = 'base';
-    } else if (config.preferredNetwork === 'radius-testnet' && hasRadius && config.radiusAgentPrivateKey) {
-      console.log('   Using Radius payment (preferred) 🔵');
-      xPaymentHeader = await createPaymentAuthorization(paymentReq);
-      usedScheme = 'evm';
     } else if (hasSolana && config.solanaAgentPrivateKey) {
       console.log('   Using Solana payment (available) 🟣');
       xPaymentHeader = await createSolanaPaymentAuthorization(paymentReq);
@@ -89,10 +83,6 @@ async function main() {
       console.log('   Using Base payment (available) 🔵');
       xPaymentHeader = await createBasePaymentAuthorization(paymentReq);
       usedScheme = 'base';
-    } else if (hasRadius && config.radiusAgentPrivateKey) {
-      console.log('   Using Radius payment (available) 🔵');
-      xPaymentHeader = await createPaymentAuthorization(paymentReq);
-      usedScheme = 'evm';
     } else {
       throw new Error('No compatible payment method available or configured');
     }
@@ -134,8 +124,6 @@ async function main() {
         console.log(`   https://basescan.org/tx/${data.paymentTxHash}\n`);
       } else if (data.networkId === 'base-sepolia' || data.networkId === '84532') {
         console.log(`   https://sepolia.basescan.org/tx/${data.paymentTxHash}\n`);
-      } else if (data.networkId === 'radius-testnet' || data.networkId === '1223953') {
-        console.log(`   https://testnet.radiustech.xyz/testnet/explorer?view=tx-details&hash=${data.paymentTxHash}\n`);
       } else {
         console.log(`   Network ${data.networkId}: ${data.paymentTxHash}\n`);
       }

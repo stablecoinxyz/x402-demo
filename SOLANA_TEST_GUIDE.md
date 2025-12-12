@@ -163,7 +163,7 @@ npm run start
 💰 Step 2: Payment Required!
    Payment requirements received:
    └─ Version: 1
-   └─ Networks: radius-testnet, base, solana-mainnet-beta
+   └─ Networks: base, solana-mainnet-beta
    └─ Solana Amount: 50000000 (0.05 SBC)
    └─ Recipient: 2mSjKVjzRGXcipq3DdJCijbepugfNSJCN1yVN2tgdw5K
 ```
@@ -171,7 +171,7 @@ npm run start
 ### 3. Payment Authorization Created
 ```
 ✍️  Step 3: Creating payment authorization...
-   Available payment networks: radius-testnet, base, solana-mainnet-beta
+   Available payment networks: base, solana-mainnet-beta
    Using Solana payment (preferred) 🟣
    Agent address (Solana): <YOUR_AGENT_ADDRESS>
    Payment to: 2mSjKVjzRGXcipq3DdJCijbepugfNSJCN1yVN2tgdw5K

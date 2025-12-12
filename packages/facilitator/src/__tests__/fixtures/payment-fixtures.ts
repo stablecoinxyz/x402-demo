@@ -5,28 +5,6 @@
  */
 
 /**
- * Create a valid EVM payment payload (Radius testnet)
- */
-export function createRadiusPayment(overrides?: Partial<any>) {
-  const now = Math.floor(Date.now() / 1000);
-
-  return {
-    x402Version: 1,
-    scheme: 'exact',
-    network: 'radius-testnet',
-    payload: {
-      from: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266', // Well-known test address (Hardhat account #0)
-      to: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Well-known test address (Hardhat account #1)
-      amount: '10000000000000000', // 0.01 USD
-      nonce: Date.now(),
-      deadline: now + 300, // 5 minutes from now
-      signature: '0x1234567890abcdef...',
-      ...overrides,
-    }
-  };
-}
-
-/**
  * Create a valid Base payment payload
  */
 export function createBasePayment(overrides?: Partial<any>) {
@@ -73,16 +51,8 @@ export function createSolanaPayment(overrides?: Partial<any>) {
 /**
  * Create payment requirements (what the API expects)
  */
-export function createPaymentRequirements(network: 'radius-testnet' | 'base' | 'base-sepolia' | 'solana-mainnet-beta') {
+export function createPaymentRequirements(network: 'base' | 'base-sepolia' | 'solana-mainnet-beta') {
   const requirements: Record<string, any> = {
-    'radius-testnet': {
-      scheme: 'exact',
-      network: 'radius-testnet',
-      maxAmountRequired: '10000000000000000',
-      payTo: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8', // Hardhat account #1
-      asset: '0x0000000000000000000000000000000000000000',
-      maxTimeoutSeconds: 60,
-    },
     'base': {
       scheme: 'exact',
       network: 'base',

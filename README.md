@@ -1,9 +1,9 @@
-# x402 Facilitator POC
+# x402 Facilitator Demo
 
-SBC's Multi-chain x402 Facilitator supporting Radius, Base, and Solana:
+SBC's Multi-chain x402 Facilitator supporting Base and Solana:
 
 - ✅ Full x402 protocol flow (HTTP 402 Payment Required)
-- ✅ **Multi-chain support:** Radius Testnet + Base (Mainnet/Sepolia) + Solana (Mainnet)
+- ✅ **Multi-chain support:** Base (Mainnet/Sepolia) + Solana (Mainnet)
 - ✅ Custom facilitator infrastructure (not using Coinbase CDP)
 - ✅ **Real mainnet payments:** SBC token on Base and Solana
 - ✅ AI agent making autonomous payments
@@ -12,7 +12,6 @@ SBC's Multi-chain x402 Facilitator supporting Radius, Base, and Solana:
 ## Quick Start 🚀 Get started in 5 minutes!
 
 Choose your payment chain:
-- **Radius Testnet** - Test with native USD tokens
 - **Base (Mainnet or Sepolia)** - Production-ready with SBC token (18 decimals on mainnet, 6 on sepolia)
 - **Solana (Mainnet)** - Production-ready with real SBC tokens
 
@@ -31,13 +30,6 @@ cd packages/ai-agent && npm install && cd ../..
 cp .env.example .env
 # Edit .env with your configuration
 ```
-
-**For EVM (Radius Testnet):**
-- `RADIUS_TESTNET_RPC_URL` - Get API key from <https://radiustech.xyz>
-- `FACILITATOR_WALLET_PRIVATE_KEY` - Facilitator's EVM private key
-- `RECIPIENT_ADDRESS` - Facilitator's EVM address
-- `AI_AGENT_PRIVATE_KEY` - AI agent's EVM private key
-- Get testnet USD: https://testnet.radiustech.xyz/testnet/faucet
 
 **For Base (Mainnet or Sepolia):**
 - `BASE_RPC_URL` - Base RPC endpoint (mainnet: `https://mainnet.base.org`, sepolia: `https://sepolia.base.org`)
@@ -61,13 +53,12 @@ cp .env.example .env
 - `SBC_TOKEN_ADDRESS` - SBC token mint (default: `DBAzBUXaLj1qANCseUPZz4sp9F8d2sc78C4vKjhbTGMA`)
 
 **Choose which network your AI agent pays in**
-- `PREFERRED_NETWORK` - `'radius-testnet'`, `'base'`, `'base-sepolia'`, or `'solana-mainnet-beta'`
+- `PREFERRED_NETWORK` - `'base'`, `'base-sepolia'`, or `'solana-mainnet-beta'`
 
-**💡 See [RADIUS_TEST_GUIDE.md](./RADIUS_TEST_GUIDE.md) for detailed Radius setup instructions.**
 **💡 See [BASE_TEST_GUIDE.md](./BASE_TEST_GUIDE.md) for detailed Base setup instructions.**
 **💡 See [SOLANA_TEST_GUIDE.md](./SOLANA_TEST_GUIDE.md) for detailed Solana setup instructions.**
 
-### 3. One-Time Approval Setup (Base & Solana Only)
+### 3. One-Time Approval Setup
 
 **⚠️ IMPORTANT:** Before making payments on Base or Solana, you must approve the facilitator as a delegate:
 
@@ -90,8 +81,6 @@ npm run approve-solana-facilitator
 ```
 
 This allows the facilitator to execute token transfers on behalf of your agent wallet. The facilitator **never holds your funds** - it only executes atomic transfers from Agent → Merchant.
-
-**Note:** Radius uses native tokens (not ERC-20), so no approval step is needed. Instead, the agent creates and signs the full native token transfer transaction, which the facilitator then broadcasts. This maintains non-custodial properties - the agent's funds flow directly to the merchant.
 
 ### 4. Start Services
 
@@ -132,14 +121,6 @@ Payment requirements: {
   "accepts": [
     {
       "scheme": "exact",
-      "network": "radius-testnet",
-      "maxAmountRequired": "10000000000000000",
-      "payTo": "0x...",
-      "asset": "0x0000000000000000000000000000000000000000",
-      "maxTimeoutSeconds": 60
-    },
-    {
-      "scheme": "exact",
       "network": "base",
       "maxAmountRequired": "10000000000000000",
       "payTo": "0x...",
@@ -158,7 +139,7 @@ Payment requirements: {
 }
 
 ✍️  Creating payment authorization...
-   Available payment networks: radius-testnet, base, solana-mainnet-beta
+   Available payment networks: base, solana-mainnet-beta
    Using Solana payment (preferred) 🟣
 ✅ Payment authorized!
 
@@ -185,16 +166,6 @@ GET /premium-data
 ```
 
 ### Step 2: Agent Creates Payment Authorization
-
-**For Radius (Native USD):**
-```typescript
-// Agent signs the complete native transfer transaction
-const signedTx = await walletClient.signTransaction({
-  to: merchantAddress,
-  value: parseEther('0.01'),
-  nonce, gasPrice, gas: 21000n, chainId: 1223953
-});
-```
 
 **For Base (ERC-20):**
 ```typescript
@@ -231,7 +202,7 @@ POST http://localhost:3001/verify
 
 ```bash
 POST http://localhost:3001/settle
-→ { "success": true, "payer": "0x...", "transaction": "0x...", "network": "radius-testnet" }
+→ { "success": true, "payer": "0x...", "transaction": "0x...", "network": "base" }
 ```
 
 ### Step 6: Agent Receives Premium Data
@@ -245,14 +216,6 @@ POST http://localhost:3001/settle
 ```
 
 ## Network Configuration
-
-### Radius Testnet (EVM)
-
-- Chain ID: `1223953`
-- RPC: `https://rpc.testnet.radiustech.xyz/<api-key>`
-- Explorer: `https://testnet.radiustech.xyz/testnet/explorer`
-- Native Currency: USD (18 decimals)
-- Faucet: `https://testnet.radiustech.xyz/testnet/faucet`
 
 ### Base Mainnet
 
@@ -284,14 +247,6 @@ POST http://localhost:3001/settle
 
 All payment methods use the x402 `exact` scheme with network-based routing.
 
-### Radius Testnet
-- **Scheme:** `exact`
-- **Network:** `radius-testnet`
-- **Amount:** 0.01 USD (10000000000000000 wei, 18 decimals)
-- **Token:** Native USD on Radius testnet
-- **Settlement:** On-chain (testnet) transfers
-- **Settlement Time:** <1 second ([source](https://www.radiustech.xyz/))
-
 ### Base Mainnet
 - **Scheme:** `exact`
 - **Network:** `base`
@@ -319,7 +274,7 @@ All payment methods use the x402 `exact` scheme with network-based routing.
 ## Project Structure
 
 ```
-x402-poc/
+x402-demo/
 ├── packages/
 │   ├── facilitator/       # x402 facilitator (verify + settle)
 │   ├── premium-api/       # API requiring payment
@@ -331,30 +286,8 @@ x402-poc/
 └── README.md
 ```
 
-## Features & Roadmap
-
-### ✅ Production-Ready
-- **x402 spec-compliant** - Uses official `exact` scheme with `network` routing
-- Multi-chain support (EVM + Base + Solana)
-- Real mainnet payments (SBC on Base and Solana)
-- Intelligent payment routing
-- **Delegated transfers (non-custodial)** - Facilitator never holds customer funds
-- Ed25519 + EIP-712 signature verification
-- Support for both Base Mainnet and Sepolia testnet
-
-### 🚧 Future Enhancements
-1. **More Chains** - Polygon, Arbitrum, Optimism
-2. **More Tokens** - USDC, USDT support, native ETH payments
-3. **Gasless Transfers** - Implement EIP-2612 permit() for gasless SBC transfers on Base
-4. **Account Abstraction** - Gasless payments for users
-5. **Monitoring Dashboard** - Analytics, SLA tracking
-6. **Enterprise Features** - Rate limiting, fraud detection, compliance
-7. **Batch Payments** - Multiple payments in one transaction
-
 ## Documentation
 
-- **[RADIUS_TEST_GUIDE.md](./RADIUS_TEST_GUIDE.md)** - Complete Radius testnet testing guide
 - **[BASE_TEST_GUIDE.md](./BASE_TEST_GUIDE.md)** - Complete Base testing guide (Mainnet & Sepolia)
 - **[SOLANA_TEST_GUIDE.md](./SOLANA_TEST_GUIDE.md)** - Complete Solana testing guide
 - **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Detailed architecture documentation
-

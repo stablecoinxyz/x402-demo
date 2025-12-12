@@ -5,7 +5,6 @@
 The x402 facilitator implements a **trustless, non-custodial payment system** for AI agents to pay for premium API access across multiple blockchains.
 
 **Supported Networks:**
-- ✅ **Radius Testnet** - Native USD transfers
 - ✅ **Base (Mainnet/Sepolia)** - SBC ERC-20 token (delegated transfers)
 - ✅ **Solana (Mainnet Beta)** - SBC SPL token (delegated transfers)
 
@@ -72,7 +71,6 @@ The x402 facilitator implements a **trustless, non-custodial payment system** fo
 ┌──────────────────┐
 │  Premium API     │  Returns 402 Payment Required
 │  (Port 3000)     │  with multi-chain options:
-│                  │  • Radius Testnet (native USD)
 │                  │  • Base Mainnet (SBC ERC-20)
 │                  │  • Solana Mainnet (SBC SPL)
 └──────┬───────────┘
@@ -81,7 +79,6 @@ The x402 facilitator implements a **trustless, non-custodial payment system** fo
        ↓
 ┌─────────────┐
 │  AI Agent   │  Chooses network & creates authorization
-│             │  • Radius: Signed native transfer transaction
 │             │  • Base: EIP-712 signature
 │             │  • Solana: Ed25519 signature
 └──────┬──────┘
@@ -117,8 +114,7 @@ The x402 facilitator implements a **trustless, non-custodial payment system** fo
 ┌──────────────────────┐
 │  SBC Facilitator     │  Settlement (chain-routed):
 │                      │
-│  /settle Endpoint    │  Radius: Native transfer
-│                      │  Base: ERC-20 transferFrom()
+│  /settle Endpoint    │  Base: ERC-20 transferFrom()
 │                      │  Solana: SPL delegated transfer
 │                      │
 │  Returns:            │
@@ -152,39 +148,6 @@ The x402 facilitator implements a **trustless, non-custodial payment system** fo
 ```
 
 ## Network-Specific Implementation
-
-### Radius Testnet (Native USD)
-
-**Token:** Native USD (18 decimals)
-**Method:** Pre-signed transaction broadcast
-**Delegation:** Not applicable (agent signs full transaction)
-**Gas:** Paid by agent (included in signed transaction)
-
-Native tokens don't have `transferFrom`, so we use a different approach:
-1. Agent creates and signs the native token transfer transaction
-2. Agent includes the signed transaction in the payment payload
-3. Facilitator broadcasts the pre-signed transaction
-
-This maintains the non-custodial model - the agent signs the exact transaction specifying the recipient and amount. The facilitator cannot modify it, only broadcast it.
-
-```typescript
-// Agent signs the transfer transaction
-const signedTx = await walletClient.signTransaction({
-  to: merchant,
-  value: parseEther('0.01'),
-  nonce,
-  gasPrice,
-  gas: 21000n,
-  chainId: 1223953
-});
-
-// Facilitator broadcasts the agent's pre-signed transaction
-await publicClient.sendRawTransaction({
-  serializedTransaction: signedTx
-});
-```
-
-**Result:** Tokens flow directly Agent → Merchant (non-custodial)
 
 ### Base (ERC-20 Token)
 
@@ -247,11 +210,6 @@ await createTransferInstruction(
 
 ```bash
 # .env file
-
-# === Radius Configuration ===
-RADIUS_MERCHANT_ADDRESS=0x...      # Receives payments
-RADIUS_FACILITATOR_ADDRESS=0x...   # Executes transactions
-RADIUS_AGENT_ADDRESS=0x...         # Makes payments
 
 # === Base Configuration ===
 BASE_MERCHANT_ADDRESS=0x...        # Receives payments
@@ -347,30 +305,6 @@ npm run start
 
 ## Payment Authorization Formats
 
-### Pre-Signed Transaction (Radius)
-
-Radius uses native USD tokens which don't support ERC-20 `transferFrom`. Instead, the agent signs the complete native token transfer transaction:
-
-```typescript
-// Agent signs the complete transfer transaction
-const signedTx = await walletClient.signTransaction({
-  to: merchantAddress,
-  value: parseEther('0.01'),    // 0.01 USD
-  nonce: currentNonce,
-  gasPrice: currentGasPrice,
-  gas: 21000n,                  // Standard native transfer
-  chainId: 1223953              // Radius Testnet
-});
-
-// Payload includes the signed transaction
-{
-  from: agentAddress,
-  to: merchantAddress,
-  amount: '10000000000000000',
-  signedTransaction: signedTx   // Facilitator broadcasts this
-}
-```
-
 ### EIP-712 (Base)
 
 ```typescript
@@ -434,21 +368,6 @@ const signature = nacl.sign.detached(
   }
 }
 
-// Radius format (uses pre-signed transaction)
-{
-  x402Version: 1,
-  scheme: 'exact',
-  network: 'radius-testnet',
-  payload: {
-    from: agentAddress,
-    to: merchantAddress,
-    amount: '10000000000000000',
-    nonce: 12345,
-    deadline: 1700000060,
-    signedTransaction: '0x...'  // Complete signed native transfer tx
-  }
-}
-
 // Base64 encoded for HTTP header
 const xPaymentHeader = Buffer.from(JSON.stringify(proof)).toString('base64');
 ```
@@ -461,7 +380,6 @@ const xPaymentHeader = Buffer.from(JSON.stringify(proof)).toString('base64');
 
 **Key Files:**
 - `src/agent.ts` - Main orchestration & chain selection
-- `src/x402-client.ts` - Radius payment authorization (pre-signed transactions)
 - `src/base-client.ts` - Base payment authorization (EIP-712) + approval
 - `src/solana-client.ts` - Solana payment authorization (Ed25519) + delegation
 - `approve-base-facilitator.ts` - Base approval setup script
@@ -576,12 +494,9 @@ npm run approve-solana-facilitator
 
 | Network | Token | Decimals | Settlement | TPS | Finality |
 |---------|-------|----------|------------|-----|----------|
-| **Radius Testnet**¹ | Native USD | 18 | Native transfer | 2.5M+ | <1s |
 | **Base Mainnet** | SBC ERC-20 | 18 | transferFrom | ~100 | <2s |
 | **Base Sepolia** | SBC ERC-20 | 6 | transferFrom | ~100 | <2s |
 | **Solana Mainnet** | SBC SPL | 9 | Delegated transfer | 65k | <1s |
-
-> ¹ Radius claims 2.5M+ TPS and sub-second finality ([source](https://www.radiustech.xyz/))
 
 ## Key Advantages
 

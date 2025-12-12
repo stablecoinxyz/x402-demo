@@ -26,7 +26,6 @@ app.listen(config.port, () => {
   console.log('\n🚀 SBC x402 Facilitator');
   console.log('========================');
   console.log(`✅ Server running on port ${config.port}`);
-  console.log(`✅ Chain: Radius Testnet (${config.radiusChainId})`);
   console.log(`✅ Chain: Base (${config.baseChainId})`);
   console.log(`✅ Chain: Solana (mainnet-beta)`);
   console.log('\n📡 Endpoints:');

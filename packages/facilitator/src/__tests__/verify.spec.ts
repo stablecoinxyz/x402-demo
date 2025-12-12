@@ -9,7 +9,6 @@ import request from 'supertest';
 import express from 'express';
 import { verifyPayment } from '../routes/verify';
 import {
-  createRadiusPayment,
   createBasePayment,
   createSolanaPayment,
   createPaymentRequirements,
@@ -57,8 +56,8 @@ describe('POST /verify - x402 Spec Compliance', () => {
 
   describe('Response Format (Section 7.1)', () => {
     it('should return spec-compliant success response with payer field', async () => {
-      const paymentData = createRadiusPayment();
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentData = createBasePayment();
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -80,10 +79,10 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should return spec-compliant error response with payer field', async () => {
-      const paymentData = createRadiusPayment({
+      const paymentData = createBasePayment({
         deadline: Math.floor(Date.now() / 1000) - 300, // Expired
       });
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -106,8 +105,8 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should NOT include non-standard fields in response', async () => {
-      const paymentData = createRadiusPayment();
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentData = createBasePayment();
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -127,24 +126,6 @@ describe('POST /verify - x402 Spec Compliance', () => {
   });
 
   describe('Multi-Chain Support', () => {
-    it('should verify Radius testnet payments', async () => {
-      const paymentData = createRadiusPayment();
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
-      const paymentHeader = encodePaymentHeader(paymentData);
-
-      const response = await request(app)
-        .post('/verify')
-        .send({
-          x402Version: 1,
-          paymentHeader,
-          paymentRequirements,
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('isValid');
-      expect(response.body).toHaveProperty('payer');
-    });
-
     it('should verify Base mainnet payments', async () => {
       const paymentData = createBasePayment();
       const paymentRequirements = createPaymentRequirements('base');
@@ -189,9 +170,9 @@ describe('POST /verify - x402 Spec Compliance', () => {
 
   describe('Validation Logic', () => {
     it('should reject payments with unsupported scheme', async () => {
-      const paymentData = createRadiusPayment();
+      const paymentData = createBasePayment();
       paymentData.scheme = 'unsupported_scheme';
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -207,9 +188,9 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should reject payments with unsupported network', async () => {
-      const paymentData = createRadiusPayment();
+      const paymentData = createBasePayment();
       paymentData.network = 'unsupported-network';
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -225,10 +206,10 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should reject expired payments', async () => {
-      const paymentData = createRadiusPayment({
+      const paymentData = createBasePayment({
         deadline: Math.floor(Date.now() / 1000) - 300, // 5 minutes ago
       });
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -244,10 +225,10 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should reject payments with insufficient amount', async () => {
-      const paymentData = createRadiusPayment({
+      const paymentData = createBasePayment({
         amount: '1000', // Way too low
       });
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -263,10 +244,10 @@ describe('POST /verify - x402 Spec Compliance', () => {
     });
 
     it('should reject payments to wrong recipient', async () => {
-      const paymentData = createRadiusPayment({
+      const paymentData = createBasePayment({
         to: '0x0000000000000000000000000000000000000001', // Valid address, but wrong recipient
       });
-      const paymentRequirements = createPaymentRequirements('radius-testnet');
+      const paymentRequirements = createPaymentRequirements('base');
       const paymentHeader = encodePaymentHeader(paymentData);
 
       const response = await request(app)
@@ -289,7 +270,7 @@ describe('POST /verify - x402 Spec Compliance', () => {
         .send({
           x402Version: 1,
           paymentHeader: 'invalid-base64!!!',
-          paymentRequirements: createPaymentRequirements('radius-testnet'),
+          paymentRequirements: createPaymentRequirements('base'),
         });
 
       expect(response.status).toBe(500);
@@ -303,7 +284,7 @@ describe('POST /verify - x402 Spec Compliance', () => {
         .send({
           x402Version: 1,
           // Missing paymentHeader
-          paymentRequirements: createPaymentRequirements('radius-testnet'),
+          paymentRequirements: createPaymentRequirements('base'),
         });
 
       expect(response.status).toBe(500);
@@ -312,11 +293,6 @@ describe('POST /verify - x402 Spec Compliance', () => {
   });
 
   describe('Network Name Format', () => {
-    it('should accept "radius-testnet" network name', async () => {
-      const paymentData = createRadiusPayment();
-      expect(paymentData.network).toBe('radius-testnet');
-    });
-
     it('should accept "base" network name', async () => {
       const paymentData = createBasePayment();
       expect(paymentData.network).toBe('base');

@@ -5,13 +5,6 @@ dotenv.config({ path: '../../.env' });
 export const config = {
   port: parseInt(process.env.FACILITATOR_PORT || '3001'),
 
-  // Radius Configuration (Radius Testnet)
-  radiusRpcUrl: process.env.RADIUS_TESTNET_RPC_URL || '',
-  radiusFacilitatorPrivateKey: process.env.RADIUS_FACILITATOR_PRIVATE_KEY || process.env.FACILITATOR_WALLET_PRIVATE_KEY || '',
-  radiusFacilitatorAddress: process.env.RADIUS_FACILITATOR_ADDRESS || process.env.FACILITATOR_ADDRESS || '',
-  radiusMerchantAddress: process.env.RADIUS_MERCHANT_ADDRESS || process.env.RECIPIENT_ADDRESS || '',
-  radiusChainId: 1223953, // Radius testnet
-
   // Base Configuration
   baseRpcUrl: process.env.BASE_RPC_URL || 'https://mainnet.base.org',
   baseFacilitatorPrivateKey: process.env.BASE_FACILITATOR_PRIVATE_KEY || '',
@@ -29,20 +22,12 @@ export const config = {
   sbcDecimals: 9,
 };
 
-// Validate Radius config (optional - only if Radius is being used)
-if (config.radiusRpcUrl && !config.radiusFacilitatorPrivateKey) {
-  throw new Error('RADIUS_FACILITATOR_PRIVATE_KEY is required for Radius');
-}
-
 // Validate Solana config (optional - only if Solana is being used)
 if (config.solanaFacilitatorPrivateKey && !config.solanaFacilitatorAddress) {
   throw new Error('SOLANA_FACILITATOR_ADDRESS is required for Solana');
 }
 
 console.log('✅ Facilitator configuration loaded');
-console.log(`   Radius Chain ID: ${config.radiusChainId}`);
-console.log(`   Radius Merchant: ${config.radiusMerchantAddress || 'Not configured'}`);
-console.log(`   Radius Facilitator: ${config.radiusFacilitatorAddress || 'Not configured'}`);
 console.log(`   Base Chain ID: ${config.baseChainId}`);
 console.log(`   Base Facilitator: ${config.baseFacilitatorAddress || 'Not configured'}`);
 console.log(`   Solana RPC: ${config.solanaRpcUrl}`);

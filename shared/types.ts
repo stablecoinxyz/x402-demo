@@ -73,30 +73,3 @@ export const PaymentTypes = {
     { name: 'deadline', type: 'uint256' }
   ]
 };
-
-// Radius Testnet Chain Config
-export const radiusTestnet = {
-  id: 1223953,
-  name: 'Radius Testnet',
-  network: 'radius-testnet',
-  nativeCurrency: {
-    decimals: 18,
-    name: 'USD',
-    symbol: 'USD',
-  },
-  rpcUrls: {
-    default: {
-      http: [process.env.RADIUS_TESTNET_RPC_URL || ''],
-    },
-    public: {
-      http: [process.env.RADIUS_TESTNET_RPC_URL || ''],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: 'Radius Explorer',
-      url: 'https://testnet.radiustech.xyz/testnet/explorer',
-    },
-  },
-  testnet: true,
-};

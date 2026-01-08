@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createWalletClient, createPublicClient, http } from 'viem';
+import { createWalletClient, createPublicClient, http, parseEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { config } from '../config';
 import { settleSolanaPayment } from '../solana/settle';
@@ -16,9 +16,32 @@ import { settleSolanaPayment } from '../solana/settle';
  *   Facilitator calls transferFrom(agent, merchant, amount) using prior approval
  *   Tokens flow: Agent → Merchant (facilitator never holds funds)
  *
+ * - Radius: Broadcast pre-signed transaction
+ *   Agent signs the native USD transfer transaction beforehand
+ *   Facilitator broadcasts it (cannot modify recipient/amount)
+ *   Tokens flow: Agent → Merchant (non-custodial)
+ *
  * All settlement methods maintain non-custodial properties - the facilitator
  * never holds customer funds.
  */
+
+// Radius Testnet Chain Config
+const radiusTestnet = {
+  id: 72344,
+  name: 'Radius Testnet',
+  network: 'radius-testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'USD',
+    symbol: 'USD',
+  },
+  rpcUrls: {
+    default: {
+      http: [config.radiusRpcUrl],
+    },
+  },
+  testnet: true,
+};
 
 // Base Mainnet Chain Config
 const baseMainnet = {
@@ -90,12 +113,13 @@ export async function settlePayment(req: Request, res: Response) {
       return res.json(result);
     }
 
-    // Handle Base payments
+    // Handle EVM-based payments (Radius or Base)
     const isBaseSepolia = paymentData.network === 'base-sepolia' || paymentData.network === '84532';
     const isBaseMainnet = paymentData.network === 'base' || paymentData.network === '8453';
     const isBase = isBaseSepolia || isBaseMainnet;
+    const isRadius = paymentData.network === 'radius-testnet' || paymentData.network === '72344';
 
-    if (!isBase) {
+    if (!isBase && !isRadius) {
       console.log('   ❌ Unknown payment network');
       return res.json({
         success: false,
@@ -106,7 +130,7 @@ export async function settlePayment(req: Request, res: Response) {
       });
     }
 
-    console.log(isBaseSepolia ? '   🔵 Base Sepolia settlement' : '   🔵 Base Mainnet settlement');
+    console.log(isBaseSepolia ? '   🔵 Base Sepolia settlement' : isBaseMainnet ? '   🔵 Base Mainnet settlement' : '   🔵 Radius settlement');
 
     const { from, to, amount } = paymentData.payload;
 
@@ -120,12 +144,17 @@ export async function settlePayment(req: Request, res: Response) {
       chain = baseSepolia;
       rpcUrl = 'https://sepolia.base.org';
       chainName = 'Base Sepolia';
-    } else {
+    } else if (isBaseMainnet) {
       chain = baseMainnet;
       rpcUrl = config.baseRpcUrl;
       chainName = 'Base Mainnet';
+    } else {
+      chain = radiusTestnet;
+      rpcUrl = config.radiusRpcUrl;
+      chainName = 'Radius testnet';
     }
-    const privateKey = config.baseFacilitatorPrivateKey;
+    const privateKey = isBase ? config.baseFacilitatorPrivateKey : config.radiusFacilitatorPrivateKey;
+    const chainId = chain.id;
 
     // Create facilitator account
     const account = privateKeyToAccount(privateKey as `0x${string}`);
@@ -153,57 +182,95 @@ export async function settlePayment(req: Request, res: Response) {
     if (useRealSettlement) {
       console.log('   🔥 REAL SETTLEMENT MODE - Executing on-chain transfer');
 
-      // Base: ERC-20 token transferFrom
-      // Facilitator executes: Agent → Merchant (facilitator never holds funds)
-      console.log('   📝 ERC-20 TransferFrom (Agent → Merchant)');
-      console.log('   From (Agent):', from);
-      console.log('   To (Merchant):', to);
+      if (isBase) {
+        // Base: ERC-20 token transferFrom
+        // Facilitator executes: Agent → Merchant (facilitator never holds funds)
+        console.log('   📝 ERC-20 TransferFrom (Agent → Merchant)');
+        console.log('   From (Agent):', from);
+        console.log('   To (Merchant):', to);
 
-      const ERC20_ABI = [
-        {
-          inputs: [
-            { name: 'from', type: 'address' },
-            { name: 'to', type: 'address' },
-            { name: 'amount', type: 'uint256' }
-          ],
-          name: 'transferFrom',
-          outputs: [{ name: '', type: 'bool' }],
-          stateMutability: 'nonpayable',
-          type: 'function'
+        const ERC20_ABI = [
+          {
+            inputs: [
+              { name: 'from', type: 'address' },
+              { name: 'to', type: 'address' },
+              { name: 'amount', type: 'uint256' }
+            ],
+            name: 'transferFrom',
+            outputs: [{ name: '', type: 'bool' }],
+            stateMutability: 'nonpayable',
+            type: 'function'
+          }
+        ] as const;
+
+        // Use correct SBC token address for network
+        const sbcTokenAddress = isBaseSepolia
+          ? '0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16'  // Base Sepolia (6 decimals)
+          : config.baseSbcTokenAddress;                    // Base Mainnet (18 decimals)
+
+        console.log('   Token:', sbcTokenAddress);
+
+        const hash = await walletClient.writeContract({
+          address: sbcTokenAddress as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'transferFrom',
+          args: [
+            from as `0x${string}`,  // Agent (payer)
+            to as `0x${string}`,    // Merchant (receiver)
+            BigInt(amount)
+          ]
+        });
+
+        txHash = hash;
+
+        console.log('   ⏳ Waiting for confirmation...');
+
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash,
+          confirmations: 1
+        });
+
+        console.log('   ✅ Real tx hash:', txHash);
+        console.log('   ✅ Block number:', receipt.blockNumber);
+        console.log('   ✅ Gas used:', receipt.gasUsed);
+        console.log(`✅ Settlement complete on ${chainName}!\n`);
+      } else {
+        // EVM (Radius): Native token transfer
+        // Agent signs the transaction, facilitator broadcasts it (non-custodial)
+        console.log('   💵 Native token transfer (USD)');
+        console.log('   📝 Agent signed transaction - Facilitator broadcasting');
+        console.log('   From (Agent):', from);
+        console.log('   To (Merchant):', to);
+
+        // Get signed transaction from payload
+        const signedTransaction = paymentData.payload.signedTransaction;
+        if (!signedTransaction) {
+          throw new Error('No signed transaction provided for Radius payment. Agent must sign the native token transfer.');
         }
-      ] as const;
 
-      // Use correct SBC token address for network
-      const sbcTokenAddress = isBaseSepolia
-        ? '0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16'  // Base Sepolia (6 decimals)
-        : config.baseSbcTokenAddress;                    // Base Mainnet (18 decimals)
+        console.log('   Signed tx:', signedTransaction.slice(0, 30) + '...');
 
-      console.log('   Token:', sbcTokenAddress);
+        // Broadcast the agent's pre-signed transaction
+        // Facilitator cannot modify this - it's already signed by the agent
+        const hash = await publicClient.sendRawTransaction({
+          serializedTransaction: signedTransaction as `0x${string}`,
+        });
 
-      const hash = await walletClient.writeContract({
-        address: sbcTokenAddress as `0x${string}`,
-        abi: ERC20_ABI,
-        functionName: 'transferFrom',
-        args: [
-          from as `0x${string}`,  // Agent (payer)
-          to as `0x${string}`,    // Merchant (receiver)
-          BigInt(amount)
-        ]
-      });
+        txHash = hash;
 
-      txHash = hash;
+        console.log('   ⏳ Waiting for confirmation...');
 
-      console.log('   ⏳ Waiting for confirmation...');
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash,
+          confirmations: 1
+        });
 
-      const receipt = await publicClient.waitForTransactionReceipt({
-        hash,
-        confirmations: 1
-      });
-
-      console.log('   ✅ Real tx hash:', txHash);
-      console.log('   ✅ Block number:', receipt.blockNumber);
-      console.log('   ✅ Gas used:', receipt.gasUsed);
-      console.log(`✅ Settlement complete on ${chainName}!\n`);
+        console.log('   ✅ Real tx hash:', txHash);
+        console.log('   ✅ Block number:', receipt.blockNumber);
+        console.log('   ✅ Gas used:', receipt.gasUsed);
+        console.log('   ✅ Agent paid from own balance (non-custodial)');
+        console.log(`✅ Settlement complete on ${chainName}!\n`);
+      }
     } else {
       console.log('   ⚠️  SIMULATED MODE - Set ENABLE_REAL_SETTLEMENT=true for real transactions');
 

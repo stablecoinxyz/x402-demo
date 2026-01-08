@@ -238,6 +238,8 @@ npm run dev
 Expected output:
 ```
 ✅ Facilitator configuration loaded
+   Radius Testnet Chain ID: 72344
+   Radius Recipient: Not configured
    Base Chain ID: 8453
    Base Facilitator: 0x1234...5678
    Solana RPC: https://api.mainnet-beta.solana.com
@@ -295,7 +297,7 @@ Payment requirements: {
 }
 
 ✍️  Creating payment authorization...
-   Available payment networks: base, solana-mainnet-beta
+   Available payment networks: radius-testnet, base, solana-mainnet-beta
    Using Base payment (preferred) 🔵
    Agent address: 0x1234...5678
    Payment to: 0xabcd...ef01

@@ -5,7 +5,13 @@ dotenv.config({ path: '../../.env' });
 export const config = {
   port: parseInt(process.env.PREMIUM_API_PORT || '3000'),
   facilitatorUrl: 'http://localhost:3001',
+
+  // Radius Configuration (Radius Testnet)
+  radiusMerchantAddress: process.env.RADIUS_MERCHANT_ADDRESS || '', // Merchant receives payment
+  radiusFacilitatorAddress: process.env.RADIUS_FACILITATOR_ADDRESS || '', // Facilitator executes tx
+  radiusPaymentAmount: process.env.RADIUS_PAYMENT_AMOUNT || process.env.PAYMENT_AMOUNT || '10000000000000000', // 0.01 USD (18 decimals)
   paymentTimeout: parseInt(process.env.PAYMENT_TIMEOUT || '60'),
+  radiusChainId: 72344, // Radius testnet
 
   // Base Configuration
   baseMerchantAddress: process.env.BASE_MERCHANT_ADDRESS || '', // Merchant receives payment
@@ -22,14 +28,19 @@ export const config = {
 };
 
 // Validate at least one payment method is configured
+const hasRadius = config.radiusMerchantAddress;
 const hasBase = config.baseMerchantAddress;
 const hasSolana = config.solanaMerchantAddress;
 
-if (!hasBase && !hasSolana) {
-  throw new Error('At least one merchant address must be configured (Base or Solana)');
+if (!hasRadius && !hasBase && !hasSolana) {
+  throw new Error('At least one merchant address must be configured');
 }
 
 console.log('✅ Premium API configuration loaded');
+if (hasRadius) {
+  console.log(`   Radius Chain ID: ${config.radiusChainId}`);
+  console.log(`   Radius Payment Amount: ${config.radiusPaymentAmount} (0.01 USD)`);
+}
 if (hasBase) {
   console.log(`   Base Chain ID: ${config.baseChainId}`);
   console.log(`   Base Payment Amount: ${config.basePaymentAmount} (0.01 SBC)`);

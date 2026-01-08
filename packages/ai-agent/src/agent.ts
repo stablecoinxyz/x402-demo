@@ -1,4 +1,5 @@
 import { config } from './config';
+import { createPaymentAuthorization } from './x402-client';
 import { createBasePaymentAuthorization } from './base-client';
 import { createSolanaPaymentAuthorization } from './solana-client';
 
@@ -42,7 +43,18 @@ async function main() {
   if (response1.status === 402) {
     console.log('   Status: 402 Payment Required ❌\n');
 
-    const paymentReq = (await response1.json()) as PaymentRequiredResponse;
+    // V2: Read PAYMENT-REQUIRED header first, fallback to body for V1 compatibility
+    const paymentRequiredHeader = response1.headers.get('payment-required');
+    let paymentReq: PaymentRequiredResponse;
+
+    if (paymentRequiredHeader) {
+      console.log('   📦 V2: Reading requirements from PAYMENT-REQUIRED header');
+      paymentReq = JSON.parse(Buffer.from(paymentRequiredHeader, 'base64').toString());
+    } else {
+      console.log('   📦 V1: Reading requirements from response body');
+      paymentReq = (await response1.json()) as PaymentRequiredResponse;
+    }
+
     console.log('💰 Step 2: Payment Required!');
     console.log('   Payment requirements received:');
     console.log('   └─ Version:', paymentReq.x402Version);
@@ -65,6 +77,7 @@ async function main() {
     // Check for available options
     const hasSolana = availableNetworks.includes('solana-mainnet-beta');
     const hasBase = availableNetworks.some(n => n === 'base' || n === 'base-sepolia' || n === '8453' || n === '84532');
+    const hasRadius = availableNetworks.some(n => n === 'radius-testnet' || n === '72344');
 
     // Use preferred network if available
     if (config.preferredNetwork === 'solana-mainnet-beta' && hasSolana && config.solanaAgentPrivateKey) {
@@ -75,6 +88,10 @@ async function main() {
       console.log('   Using Base payment (preferred) 🔵');
       xPaymentHeader = await createBasePaymentAuthorization(paymentReq);
       usedScheme = 'base';
+    } else if (config.preferredNetwork === 'radius-testnet' && hasRadius && config.radiusAgentPrivateKey) {
+      console.log('   Using Radius payment (preferred) 🔵');
+      xPaymentHeader = await createPaymentAuthorization(paymentReq);
+      usedScheme = 'evm';
     } else if (hasSolana && config.solanaAgentPrivateKey) {
       console.log('   Using Solana payment (available) 🟣');
       xPaymentHeader = await createSolanaPaymentAuthorization(paymentReq);
@@ -83,6 +100,10 @@ async function main() {
       console.log('   Using Base payment (available) 🔵');
       xPaymentHeader = await createBasePaymentAuthorization(paymentReq);
       usedScheme = 'base';
+    } else if (hasRadius && config.radiusAgentPrivateKey) {
+      console.log('   Using Radius payment (available) 🔵');
+      xPaymentHeader = await createPaymentAuthorization(paymentReq);
+      usedScheme = 'evm';
     } else {
       throw new Error('No compatible payment method available or configured');
     }
@@ -91,9 +112,13 @@ async function main() {
 
     // Step 4: Retry with payment
     console.log('📡 Step 4: Retrying request with payment...');
+    console.log('   Sending V2 PAYMENT-SIGNATURE header (with X-PAYMENT fallback)');
 
     const response2 = await fetch(`${config.premiumApiUrl}/premium-data`, {
       headers: {
+        // V2: Use PAYMENT-SIGNATURE header
+        'PAYMENT-SIGNATURE': xPaymentHeader,
+        // V1: Keep X-PAYMENT for backward compatibility
         'X-PAYMENT': xPaymentHeader,
       },
     });
@@ -101,6 +126,15 @@ async function main() {
     // Step 5: Handle response
     if (response2.ok) {
       const data = (await response2.json()) as PremiumDataResponse;
+
+      // V2: Check for PAYMENT-RESPONSE header
+      const paymentResponseHeader = response2.headers.get('payment-response');
+      if (paymentResponseHeader) {
+        const paymentMeta = JSON.parse(Buffer.from(paymentResponseHeader, 'base64').toString());
+        console.log('   📦 V2: PAYMENT-RESPONSE header received');
+        console.log('   └─ Transaction:', paymentMeta.transaction);
+        console.log('   └─ Network:', paymentMeta.network);
+      }
 
       console.log('   Status:', response2.status, 'OK ✅\n');
 
@@ -124,6 +158,8 @@ async function main() {
         console.log(`   https://basescan.org/tx/${data.paymentTxHash}\n`);
       } else if (data.networkId === 'base-sepolia' || data.networkId === '84532') {
         console.log(`   https://sepolia.basescan.org/tx/${data.paymentTxHash}\n`);
+      } else if (data.networkId === 'radius-testnet' || data.networkId === '72344') {
+        console.log(`   https://testnet.radiustech.xyz/testnet/explorer?view=tx-details&hash=${data.paymentTxHash}\n`);
       } else {
         console.log(`   Network ${data.networkId}: ${data.paymentTxHash}\n`);
       }

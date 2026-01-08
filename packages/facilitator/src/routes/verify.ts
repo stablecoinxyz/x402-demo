@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { createPublicClient, http, verifyTypedData } from 'viem';
+import { createPublicClient, http, verifyTypedData, parseTransaction } from 'viem';
 import { config } from '../config';
 import { verifySolanaPayment } from '../solana/verify';
 
@@ -10,7 +10,31 @@ import { verifySolanaPayment } from '../solana/verify';
  *
  * - Solana: Ed25519 signature verification (handled by solana/verify.ts)
  * - Base: EIP-712 typed data signature verification
+ * - Radius: Signed transaction verification (native USD tokens)
+ *
+ * Radius uses a different approach because native tokens don't support ERC-20
+ * approve/transferFrom. Instead, the agent signs a raw transaction that the
+ * facilitator will broadcast. We verify the transaction details match the
+ * claimed payment (recipient, amount, chain ID).
  */
+
+// Radius Testnet Chain Config
+const radiusTestnet = {
+  id: 72344,
+  name: 'Radius Testnet',
+  network: 'radius-testnet',
+  nativeCurrency: {
+    decimals: 18,
+    name: 'USD',
+    symbol: 'USD',
+  },
+  rpcUrls: {
+    default: {
+      http: [config.radiusRpcUrl],
+    },
+  },
+  testnet: true,
+};
 
 // Base Mainnet Chain Config
 const baseMainnet = {
@@ -81,12 +105,13 @@ export async function verifyPayment(req: Request, res: Response) {
       return res.json(result);
     }
 
-    // Handle Base payments
+    // Handle EVM-based payments (Radius or Base)
     const isBaseSepolia = paymentData.network === 'base-sepolia' || paymentData.network === '84532';
     const isBaseMainnet = paymentData.network === 'base' || paymentData.network === '8453';
     const isBase = isBaseSepolia || isBaseMainnet;
+    const isRadius = paymentData.network === 'radius-testnet' || paymentData.network === '72344';
 
-    if (!isBase) {
+    if (!isBase && !isRadius) {
       console.log('   ❌ Unknown payment network');
       return res.json({
         isValid: false,
@@ -95,9 +120,9 @@ export async function verifyPayment(req: Request, res: Response) {
       });
     }
 
-    console.log(isBaseSepolia ? '   🔵 Base Sepolia payment detected' : '   🔵 Base Mainnet payment detected');
+    console.log(isBaseSepolia ? '   🔵 Base Sepolia payment detected' : isBaseMainnet ? '   🔵 Base Mainnet payment detected' : '   🔵 Radius payment detected');
 
-    const { from, to, amount, nonce, deadline, signature } = paymentData.payload;
+    const { from, to, amount, nonce, deadline, signature, signedTransaction } = paymentData.payload;
 
     console.log('   From:', from);
     console.log('   To:', to);
@@ -105,51 +130,106 @@ export async function verifyPayment(req: Request, res: Response) {
     console.log('   Deadline:', new Date(deadline * 1000).toISOString());
 
     // Select chain config and RPC based on network
+    // Base Sepolia and Base Mainnet have different token addresses and RPCs
     let chain, chainId, rpcUrl, facilitatorAddress;
     if (isBaseSepolia) {
       chain = { ...baseMainnet, id: 84532, name: 'Base Sepolia', testnet: true };
       chainId = 84532;
       rpcUrl = 'https://sepolia.base.org';
       facilitatorAddress = config.baseFacilitatorAddress;
-    } else {
+    } else if (isBaseMainnet) {
       chain = baseMainnet;
       chainId = config.baseChainId;
       rpcUrl = config.baseRpcUrl;
       facilitatorAddress = config.baseFacilitatorAddress;
+    } else {
+      chain = radiusTestnet;
+      chainId = config.radiusChainId;
+      rpcUrl = config.radiusRpcUrl;
+      facilitatorAddress = config.radiusFacilitatorAddress;
     }
 
-    // 2. Verify EIP-712 signature
-    // IMPORTANT: verifyingContract must be facilitator address (who verifies), not merchant (who receives)
-    const domain = getDomain(facilitatorAddress, chainId);
-    const message = { from, to, amount: BigInt(amount), nonce: BigInt(nonce), deadline: BigInt(deadline) };
+    // 2. Verify authorization
+    if (isRadius && signedTransaction) {
+      // Radius: Verify the signed transaction
+      // The signed transaction itself is the authorization - parse and verify its contents
+      console.log('   📝 Verifying signed transaction...');
 
-    try {
-      const isValidSig = await verifyTypedData({
-        address: from as `0x${string}`,
-        domain,
-        types,
-        primaryType: 'Payment',
-        message,
-        signature: signature as `0x${string}`,
-      });
+      try {
+        const parsedTx = parseTransaction(signedTransaction as `0x${string}`);
 
-      if (!isValidSig) {
-        console.log('   ❌ Invalid signature');
+        // Verify transaction details match the claimed payment
+        if (parsedTx.to?.toLowerCase() !== to.toLowerCase()) {
+          console.log('   ❌ Transaction recipient mismatch');
+          return res.json({
+            isValid: false,
+            payer: from,
+            invalidReason: 'Transaction recipient does not match claimed recipient'
+          });
+        }
+
+        if (parsedTx.value !== BigInt(amount)) {
+          console.log('   ❌ Transaction amount mismatch');
+          return res.json({
+            isValid: false,
+            payer: from,
+            invalidReason: 'Transaction amount does not match claimed amount'
+          });
+        }
+
+        if (parsedTx.chainId !== radiusTestnet.id) {
+          console.log('   ❌ Transaction chain ID mismatch');
+          return res.json({
+            isValid: false,
+            payer: from,
+            invalidReason: 'Transaction chain ID does not match Radius testnet'
+          });
+        }
+
+        console.log('   ✅ Signed transaction valid');
+        console.log('   ✅ Transaction matches claimed payment details');
+      } catch (error) {
+        console.log('   ❌ Failed to parse signed transaction:', error);
         return res.json({
           isValid: false,
           payer: from,
-          invalidReason: 'Invalid signature'
+          invalidReason: 'Invalid signed transaction'
         });
       }
+    } else {
+      // Base: Verify EIP-712 signature
+      // IMPORTANT: verifyingContract must be facilitator address (who verifies), not merchant (who receives)
+      const domain = getDomain(facilitatorAddress, chainId);
+      const message = { from, to, amount: BigInt(amount), nonce: BigInt(nonce), deadline: BigInt(deadline) };
 
-      console.log('   ✅ Signature valid');
-    } catch (error) {
-      console.log('   ❌ Signature verification failed:', error);
-      return res.json({
-        isValid: false,
-        payer: from,
-        invalidReason: 'Signature verification failed'
-      });
+      try {
+        const isValidSig = await verifyTypedData({
+          address: from as `0x${string}`,
+          domain,
+          types,
+          primaryType: 'Payment',
+          message,
+          signature: signature as `0x${string}`,
+        });
+
+        if (!isValidSig) {
+          console.log('   ❌ Invalid signature');
+          return res.json({
+            isValid: false,
+            payer: from,
+            invalidReason: 'Invalid signature'
+          });
+        }
+
+        console.log('   ✅ Signature valid');
+      } catch (error) {
+        console.log('   ❌ Signature verification failed:', error);
+        return res.json({
+          isValid: false,
+          payer: from,
+          invalidReason: 'Signature verification failed'
+        });
+      }
     }
 
     // 3. Check deadline
@@ -189,40 +269,49 @@ export async function verifyPayment(req: Request, res: Response) {
 
     console.log('   ✅ Recipient valid');
 
-    // 6. Check on-chain ERC-20 token balance
+    // 6. Check on-chain balance
     const publicClient = createPublicClient({
       chain,
       transport: http(rpcUrl),
     });
 
-    const ERC20_ABI = [
-      {
-        inputs: [{ name: 'account', type: 'address' }],
-        name: 'balanceOf',
-        outputs: [{ name: '', type: 'uint256' }],
-        stateMutability: 'view',
-        type: 'function'
-      }
-    ] as const;
+    let balance: bigint;
 
-    // Use correct SBC token address for network
-    const sbcTokenAddress = isBaseSepolia
-      ? '0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16'  // Base Sepolia (6 decimals)
-      : config.baseSbcTokenAddress;                    // Base Mainnet (18 decimals)
+    if (isBase) {
+      // Base: Check ERC-20 token balance
+      const ERC20_ABI = [
+        {
+          inputs: [{ name: 'account', type: 'address' }],
+          name: 'balanceOf',
+          outputs: [{ name: '', type: 'uint256' }],
+          stateMutability: 'view',
+          type: 'function'
+        }
+      ] as const;
 
-    const decimals = isBaseSepolia ? 6 : config.baseSbcDecimals;
+      // Use correct SBC token address for network
+      const sbcTokenAddress = isBaseSepolia
+        ? '0xf9FB20B8E097904f0aB7d12e9DbeE88f2dcd0F16'  // Base Sepolia (6 decimals)
+        : config.baseSbcTokenAddress;                    // Base Mainnet (18 decimals)
 
-    console.log('   SBC Token:', sbcTokenAddress);
+      const decimals = isBaseSepolia ? 6 : config.baseSbcDecimals;
 
-    const balance = await publicClient.readContract({
-      address: sbcTokenAddress as `0x${string}`,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [from as `0x${string}`]
-    });
+      console.log('   SBC Token:', sbcTokenAddress);
 
-    const balanceFormatted = Number(balance) / Math.pow(10, decimals);
-    console.log(`   Sender SBC balance: ${balance.toString()} (${balanceFormatted} SBC)`);
+      balance = await publicClient.readContract({
+        address: sbcTokenAddress as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: 'balanceOf',
+        args: [from as `0x${string}`]
+      });
+
+      const balanceFormatted = Number(balance) / Math.pow(10, decimals);
+      console.log(`   Sender SBC balance: ${balance.toString()} (${balanceFormatted} SBC)`);
+    } else {
+      // EVM (Radius): Check native token balance
+      balance = await publicClient.getBalance({ address: from as `0x${string}` });
+      console.log('   Sender balance:', balance.toString());
+    }
 
     if (balance < BigInt(amount)) {
       console.log('   ❌ Insufficient balance');

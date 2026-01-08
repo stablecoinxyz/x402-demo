@@ -119,7 +119,7 @@ npm run dev
 Expected output:
 ```
 ✅ Facilitator configuration loaded
-   EVM Chain ID: 1223953
+   EVM Chain ID: 72344
    EVM Recipient: 0x...
    Solana RPC: https://mainnet.helius-rpc.com/...
    Solana Facilitator: 2mSjKVjzRGXcipq3DdJCijbepugfNSJCN1yVN2tgdw5K

@@ -61,6 +61,7 @@ describe('GET /supported - x402 Spec Compliance', () => {
 
       // Valid network names per spec
       const validNetworks = [
+        'radius-testnet',
         'base',
         'base-sepolia',
         'solana-mainnet-beta'
@@ -90,6 +91,24 @@ describe('GET /supported - x402 Spec Compliance', () => {
   });
 
   describe('Capability Discovery', () => {
+    it('should include Radius testnet if configured', async () => {
+      const response = await request(app).get('/supported');
+
+      // If Radius is configured, should be in list
+      const hasRadius = response.body.kinds?.some(
+        (k: any) => k.network === 'radius-testnet' && k.scheme === 'exact'
+      );
+
+      // We can't assert true/false without knowing config, but structure should be correct
+      if (hasRadius) {
+        const radiusKind = response.body.kinds.find(
+          (k: any) => k.network === 'radius-testnet'
+        );
+        expect(radiusKind.x402Version).toBe(1);
+        expect(radiusKind.scheme).toBe('exact');
+      }
+    });
+
     it('should include Base mainnet if configured', async () => {
       const response = await request(app).get('/supported');
 
@@ -181,9 +200,10 @@ describe('GET /supported - x402 Spec Compliance', () => {
         // Should be network names like "base", not chain IDs like "8453"
         expect(kind.network).not.toBe('8453');
         expect(kind.network).not.toBe('84532');
+        expect(kind.network).not.toBe('72344');
 
         // Should be valid network name
-        const validNames = ['base', 'base-sepolia', 'solana-mainnet-beta'];
+        const validNames = ['radius-testnet', 'base', 'base-sepolia', 'solana-mainnet-beta'];
         expect(validNames).toContain(kind.network);
       });
     });
@@ -240,8 +260,9 @@ describe('GET /supported - Integration with Config', () => {
     // that have valid configuration (facilitator addresses set)
 
     // Implementation should check:
-    // - If config.baseMerchantAddress is set → include base or base-sepolia
-    // - If config.solanaMerchantAddress is set → include solana-mainnet-beta
+    // - If config.recipientAddress is set → include radius-testnet
+    // - If config.baseRecipientAddress is set → include base or base-sepolia
+    // - If config.solanaRecipientAddress is set → include solana-mainnet-beta
 
     // This ensures clients only see payment methods that actually work
   });

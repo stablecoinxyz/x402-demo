@@ -36,7 +36,7 @@ export function createPaymentRequirement(resource: string) {
   }
 
   return {
-    x402Version: 1,
+    x402Version: 2,
     accepts,
     error: 'Payment required to access premium data',
   };
@@ -63,7 +63,7 @@ export async function verifyWithFacilitator(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      x402Version: 1,
+      x402Version: 2,
       paymentHeader,
       paymentRequirements: matchingRequirement,
     }),
@@ -103,7 +103,7 @@ export async function settleWithFacilitator(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      x402Version: 1,
+      x402Version: 2,
       paymentHeader,
       paymentRequirements: matchingRequirement,
     }),
